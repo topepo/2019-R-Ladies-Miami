@@ -1,0 +1,693 @@
+---
+title: "Totally Tidy Tuning Tools"
+author: Max Kuhn (RStudio)
+output:
+  xaringan::moon_reader:
+    css: ["mtheme_max.css", "fonts_mtheme_max.css"]    
+    self_contained: false
+    lib_dir: libs
+    nature:
+      ratio: '16:9'
+      highlightLanguage: R
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+
+
+background-size: cover 
+background-image: url(previously.png)
+
+---
+
+# tidymodels
+
+The `tidymodels` packages are a collection that are used for different types of modeling and are consistent with the design principles of the tidyverse. 
+
+They are fairly young (compared to `caret`) but are finally at a point where we have most of the basics covered. 
+
+I'll (very) briefly introduce some of these packages before we get to the new one. 
+
+```{r tm}
+library(tidymodels) # This presentation uses devtools::install_dev("tune")
+```
+
+
+```{r knitr, include = FALSE}
+library(knitr)
+opts_chunk$set(digits = 3)
+library(tidymodels)
+theme_set(theme_bw())
+library(doMC)
+registerDoMC(cores = 10)
+library(tidyverse)
+```
+
+
+```{r ggplot, include = FALSE}
+thm <- theme_bw() + 
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA), 
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    legend.position = "top",
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    legend.key = element_rect(fill = "transparent", colour = NA)
+  )
+theme_set(thm)
+library(kableExtra)
+library(leaflet)
+options(width = 110)
+```
+
+
+---
+
+# Demonstration data
+
+These data are used in our [Feature Engineering and Selection](https://bookdown.org/max/FES/chicago-intro.html) book. 
+
+Several years worth of data were assembled to try to predict the daily number of people entering the Clark and Lake elevated ("L") train station in Chicago. 
+
+For predictors, 
+
+* the 14-day lagged ridership at this and other stations (units: thousands of rides/day)
+
+* weather data
+
+* home/away game schedules for Chicago teams
+
+* the date
+
+The data are in `modeldata`. See `?Chicago`. 
+
+---
+
+# L Train Locations
+
+```{r chicago, echo = FALSE, out.width='100%'}
+library(leaflet)
+
+load("RData/station_locations.RData")
+
+other_stations <- 
+  station_locations %>% 
+  filter(!grepl("Clark/Lake", description, fixed = TRUE))
+
+clark_lake <- 
+  anti_join(station_locations, other_stations, by = c("lon", "lat", "description"))
+
+leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(
+    other_stations$lon,
+    other_stations$lat,
+    popup = other_stations$description,
+    color = "red",
+    radius = 3
+  ) %>%
+  addCircleMarkers(
+    clark_lake$lon,
+    clark_lake$lat,
+    color = "green",
+    radius = 6
+  )
+```
+
+---
+
+# Pre-processing the data
+
+In these data, the ridership from other stations are important predictors but they are highly correlated. 
+
+This might be bad for some models so we should probably reduce the correlation by eliminating columns or re-encoding the variables as _principal components_. 
+
+Also, the date is a strong predictor. We can engineer this into day/month/year indicators as well as indicators for holidays. 
+
+We'll create a recipe to do this.
+ 
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe}
+library(tidymodels)
+data("Chicago", package = "modeldata")
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) #<<
+```
+
+]
+---
+
+# Pre-processing with {recipes}
+.font90[
+
+```{r recipe-holiday}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators #<<
+  step_holiday(date)#<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-dates}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year #<<
+  step_date(date) #<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-no-date}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column #<<
+  step_rm(date) #<<
+```
+
+]
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```{r recipe-summy}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column
+  step_rm(date) %>%
+  # Make all factors into indicator variables #<<
+  step_dummy(all_nominal())#<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-zv}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column
+  step_rm(date) %>%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %>%
+  # Remove any columns with a single value #<<
+  step_zv(all_predictors()) #<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-norm-1}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column
+  step_rm(date) %>%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %>%
+  # Remove any columns with a single value 
+  step_zv(all_predictors()) %>% 
+  # We will be using methods that require the predictors to be in the same #<<
+  # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.#<<
+  # `stations` is included in  the modeldata package and is a list of the #<<
+  # station predictors.#<<
+  step_normalize(one_of(!!stations))#<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-corr}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column
+  step_rm(date) %>%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %>%
+  # Remove any columns with a single value
+  step_zv(all_predictors()) %>%
+  # We will be using methods that require the predictors to be in the same 
+  # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.
+  # `stations` is included in  the modeldata package and is a list of the 
+  # station predictors.
+  step_normalize(one_of(!!stations)) %>% 
+  # Convert the stations to principal components.  #<<
+  step_pca(one_of(!!stations), num_comp = 10) #<<
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+```{r recipe-norm-2}
+library(tidymodels)
+
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  # Create holiday indicators
+  step_holiday(date) %>%
+  # Make _factors_ for day, month, and year
+  step_date(date) %>%
+  # We don't need the original date column
+  step_rm(date) %>%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %>%
+  # Remove any columns with a single value
+  step_zv(all_predictors()) %>%
+  # We will be using methods that require the predictors to be in the same 
+  # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.
+  # `stations` is included in  the modeldata package and is a list of the 
+  # station predictors.
+  step_normalize(one_of(!!stations)) %>% 
+  # Convert the stations to principal components. 
+  step_pca(one_of(!!stations), num_comp = 10) %>% 
+  # But wait! Our model will be using distances, so now _everything_ should be #<<
+  # on the same scale (including the PCA values).#<<
+  step_normalize(all_predictors())#<<
+```
+
+]
+
+
+---
+
+# Creating Models with {parsnip}
+
+.pull-left[
+Like a recipe, we create a _model specification_ of what we want to do:
+
+```{r spec}
+knn_mod <- nearest_neighbor(neighbors = 5) %>% 
+  # The "engine" is the method for 
+  # estimating parameters. For KNN
+  set_engine("kknn") %>% 
+  # The mode is the type of model (we have a
+  # numeric outcome)
+  set_mode("regression")
+```
+
+_Then_ we give it the data to fit the model:
+
+```{r fit}
+# Just an example with the raw data
+
+fitted <- 
+  knn_mod %>% 
+  fit(ridership ~ Monroe + humidity, data = Chicago)
+```
+
+]
+.pull-right[
+The important piece is that, unlike traditional modeling functions (like `lm()`), we separate:
+
+ * what we want to do ("fit this type of model")
+ 
+from 
+ 
+ * doing it ("estimate stuff with these data")
+
+This allows us to use arguments that can't be evaluated at that time. 
+
+]
+
+---
+
+# Define the Data Analysis Process
+
+.pull-left[
+Let's conceptualize a process or _workflow_ that involves all of the steps where the data are analyzed in a significant way. The includes the model but might also include other _estimation_ steps:
+
+ * data preparation steps (e.g. imputation, encoding, transformations, etc)
+ 
+ * selection of which terms go into the model
+
+and so on. 
+
+Admittedly, there is some grey area here. 
+
+]
+.pull-right[
+
+
+```{r realistic-proc, echo = FALSE, out.width = '95%', fig.align='center', dev = 'svg', dev.args = list(bg = "transparent"), warning=FALSE}
+knitr::include_graphics("images/diagram-complex.svg")
+```
+
+
+]
+ 
+
+
+
+---
+
+# Tuning Parameters
+
+These are model parameters that cannot be _directly_ estimated from the data.
+
+Examples:
+
+ * number of nearest neighbors
+ 
+ * depth of a classification tree
+ 
+ * amount of regularization
+ 
+ * covariance structure
+ 
+ * distance weighting function
+
+Often, reasonable values for these are found using a search procedure coupled with resampling methods. 
+
+How can we tell the model function that we don't know their values? 
+
+---
+
+# K-NN Tuning parameters
+
+The `dist_power` parameter is related to the type of distance calculation. `dist_power = 2` is everyday Euclidean distance, `dist_power = 1` is Manhattan distance, and so on. Fractional values are acceptable. 
+
+`weight_func` determines how much influence neighbors have based on their distance: 
+
+```{r schemes, echo = FALSE, message = FALSE, fig.width=15, fig.height=4.25, out.width = '100%', fig.align='center', dev = 'svg', dev.args = list(bg = "transparent")}
+dist <- seq(0, 1, length = 100)[-1]
+
+weight_func_grid <- 
+  bind_rows(
+    tibble(distance = dist, weight = 1/dist/100, scheme = "inverse"),
+    tibble(distance = dist, weight = 1 - dist, scheme = "triangular"),
+    tibble(distance = dist, weight = 0.50, scheme = "rectangular"),
+    tibble(distance = dist, weight = cos(dist * pi / 2), scheme = "cosine")
+  )
+
+ggplot(weight_func_grid, aes(x = distance, y = weight)) + 
+  geom_path() + 
+  facet_grid(~scheme) 
+```
+
+---
+
+# Tagging Tunable Parameters
+
+In `parsnip` models (and `recipes`), parameters that need tuning are marked using the `tune()` function in the `{tune}` package. 
+
+`tune()` just returns an expression
+
+.pull-left[
+```{r tune-model}
+str(tune())
+
+# Let's optimize two parameters:
+knn_mod <- 
+  nearest_neighbor(
+    neighbors = tune(), #<<
+    weight_func = tune() #<<
+  ) %>% 
+  set_engine("kknn") %>% 
+  set_mode("regression")
+```
+]
+.pull-right[
+```{r tune-recipe}
+chi_rec <-
+  recipe(ridership ~ ., data = Chicago) %>%
+  step_holiday(date) %>%
+  step_date(date) %>%
+  step_rm(date) %>%
+  step_dummy(all_nominal()) %>%
+  step_zv(all_predictors()) %>%
+  step_normalize(one_of(!!stations)) %>% 
+  step_pca(one_of(!!stations), num_comp = tune()) %>% #<<
+  step_normalize(all_predictors())
+```
+]
+
+
+
+---
+
+# Elements required for grid search
+
+.pull-left[
+* The model and pre-processor.
+
+* Measure of model performance.  
+
+* A resampling scheme to reliably estimate model performance
+
+* A set of candidate models to compare (aka the "grid" in grid search)
+
+There are two main types of grids: regular and non-regular. 
+
+We default to using a special kind of non-regular grid called a space-filling statistical design. You can use any type of grid that you want though. 
+
+]
+.pull-right[
+```{r grid-plot, echo = FALSE, message = FALSE, out.width = '100%', fig.align='center', dev = 'svg', dev.args = list(bg = "transparent")}
+glmn_param <- parameters(penalty(), mixture())
+
+glmn_reg <- 
+  grid_regular(glmn_param, levels = c(10, 5)) %>% 
+  mutate(grid = "regular")
+set.seed(4565)
+glmn_lhs <- 
+  grid_max_entropy(glmn_param, size = 50, variogram_range = 1) %>% 
+  mutate(grid = "non-regular")
+
+bind_rows(glmn_lhs, glmn_reg) %>% 
+  mutate(grid = factor(grid, levels = c("regular", "non-regular"))) %>% 
+  ggplot( aes(x = penalty, y = mixture)) + 
+  geom_point() + 
+  scale_x_log10() + 
+  facet_wrap(~grid, ncol = 1) + 
+  coord_equal(10)
+```
+]
+
+ 
+
+
+---
+
+# Resampling with {rsample}
+
+Resampling methods, like 10-fold cross-validation or the bootstrap, are methods that can be used to get good estiamtes of how well our models are performing. 
+
+Our resampling scheme will emulate this using [rolling forecasting origin](https://otexts.com/fpp2/accuracy.html) resampling with
+
+* Moving analysis sets of 15 years moving over 28 day periods
+* An assessment set of the most recent 28 days of data
+
+.font80[
+
+```{r resamples}
+time_resamples <- rolling_origin(Chicago, initial = 364 * 15, assess = 7 * 2, skip = 7 * 2, cumulative = FALSE)
+time_resamples
+```
+
+]
+
+
+---
+
+# Resampling Graphic
+
+```{r resample-plot-full, echo = FALSE, warning = FALSE, fig.width = 8, fig.height = 5,  out.width = '75%', fig.align = 'center', dev = 'png', dpi = 200, dev.args = list(bg = "#FAFAFA")}
+tidy(time_resamples) %>% 
+  ggplot(aes(x = Row, y = Resample, fill = Data)) + 
+  geom_tile() + 
+  ylab("") + 
+  xlab("Day Number")
+```
+
+
+---
+
+# Enhance!
+
+```{r resample-plot, echo = FALSE, warning = FALSE, fig.width = 8, fig.height = 5,  out.width = '75%', fig.align = 'center', dev = 'svg', dev.args = list(bg = "transparent")}
+tidy(time_resamples) %>% 
+  ggplot(aes(x = Row, y = Resample, fill = Data)) + 
+  geom_tile() + 
+  xlim(c(5000, 5700)) + 
+  ylab("") + 
+  xlab("Day Number (starts at one)")
+```
+
+
+---
+
+# Optimizing Parameters
+
+The functions `tune_grid()` or `tune_bayes()` can detect these and optimize then using grid search or Bayesian optimization, respectively:
+
+```{r grid, cache = TRUE}
+# Test 20 values using a space-filling design
+set.seed(2132)
+grid_results <- knn_mod %>% tune_grid(chi_rec, resamples = time_resamples, grid = 20)
+```
+
+What you get back is a tibble with the results
+
+.font90[
+
+```{r show-res}
+grid_results %>% slice(1:5)
+```
+
+]
+
+---
+
+# Get the results
+
+
+```{r collect}
+collect_metrics(grid_results)
+
+# to get the metrics for each resample:
+# collect_metrics(grid_results, summarize = FALSE)
+
+# collect_predictions() returns the holdout predictions too.
+```
+
+---
+
+# Best candidate models
+
+
+```{r best}
+show_best(grid_results, metric = "rmse")
+```
+
+---
+
+# Results
+
+```{r plot-res, out.width = '70%', fig.width=8, fig.height=4.5, fig.align='center', dev = 'svg', dev.args = list(bg = "transparent")}
+autoplot(grid_results, metric = "rmse")
+```
+
+
+---
+
+# Some notes
+
+* The `grid` option can be an integer or a data frame of specific settings. Also, different metrics can be passed in. 
+
+* These models can be run in parallel using the `foreach` package (the same as `caret`)
+
+* You can easily change the default parameter ranges (e.g. PCA components > 4)
+
+* The models and predictions are not automatically saved but there are options to get those. 
+
+* We capture errors and warnings as they happen and tell you which model they are from (***do the demo!***). 
+
+* There are functions to take these results and use them to finalize the original recipe and model objects.  
+
+* The recipe is remade for every resample; the estimated from the training data are applied to all data. 
+
+
+
+---
+
+# Sequential search
+
+Instead of using a pre-defined set of tuning parameters, there are techniques for finding new values based on the existing results. 
+
+_Bayesian optimization_ is popular and we have a function to do that: 
+
+```{r go-bayes, eval = FALSE}
+set.seed(22)
+search_results <- knn_mod %>% tune_bayes(chi_rec, resamples = time_resamples)
+```
+
+See the [package vignettes](https://tidymodels.github.io/tune/) for examples and explanations. 
+
+---
+
+# Fini
+
+Thanks for the invitation to speak!
+
+If you want more information on these packages, the training notes for the 2-day workshop that I taught at RStudio::conf are at [`https://github.com/rstudio-conf-2020/applied-ml`](https://github.com/rstudio-conf-2020/applied-ml). 
+
+These slides are at [`https://github.com/topepo/2019-R-Ladies-Miami`](https://github.com/topepo/2019-R-Ladies-Miami). 

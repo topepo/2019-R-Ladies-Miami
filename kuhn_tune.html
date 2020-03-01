@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Totally Tidy Tuning Tools</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Max Kuhn (RStudio)" />
+    <script src="libs/htmlwidgets-1.5.1/htmlwidgets.js"></script>
+    <script src="libs/jquery-1.12.4/jquery.min.js"></script>
+    <link href="libs/leaflet-1.3.1/leaflet.css" rel="stylesheet" />
+    <script src="libs/leaflet-1.3.1/leaflet.js"></script>
+    <link href="libs/leafletfix-1.0.0/leafletfix.css" rel="stylesheet" />
+    <script src="libs/Proj4Leaflet-1.0.1/proj4-compressed.js"></script>
+    <script src="libs/Proj4Leaflet-1.0.1/proj4leaflet.js"></script>
+    <link href="libs/rstudio_leaflet-1.3.1/rstudio_leaflet.css" rel="stylesheet" />
+    <script src="libs/leaflet-binding-2.0.3/leaflet.js"></script>
+    <link rel="stylesheet" href="mtheme_max.css" type="text/css" />
+    <link rel="stylesheet" href="fonts_mtheme_max.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Totally Tidy Tuning Tools
+### Max Kuhn (RStudio)
+
+---
+
+
+
+
+
+
+background-size: cover 
+background-image: url(previously.png)
+
+---
+
+# tidymodels
+
+The `tidymodels` packages are a collection that are used for different types of modeling and are consistent with the design principles of the tidyverse. 
+
+They are fairly young (compared to `caret`) but are finally at a point where we have most of the basics covered. 
+
+I'll (very) briefly introduce some of these packages before we get to the new one. 
+
+
+```r
+library(tidymodels) # This presentation uses devtools::install_dev("tune")
+```
+
+```
+## ── Attaching packages ────────────────────────────────────────── tidymodels 0.1.0 ──
+```
+
+```
+## ✓ broom     0.5.4          ✓ recipes   0.1.9     
+## ✓ dials     0.0.4          ✓ rsample   0.0.5     
+## ✓ dplyr     0.8.4          ✓ tibble    2.1.3     
+## ✓ ggplot2   3.2.1          ✓ tune      0.0.1.9000
+## ✓ infer     0.5.1          ✓ workflows 0.1.0     
+## ✓ parsnip   0.0.5          ✓ yardstick 0.0.5     
+## ✓ purrr     0.3.3
+```
+
+```
+## ── Conflicts ───────────────────────────────────────────── tidymodels_conflicts() ──
+## x purrr::discard()    masks scales::discard()
+## x dplyr::filter()     masks stats::filter()
+## x dplyr::lag()        masks stats::lag()
+## x ggplot2::margin()   masks dials::margin()
+## x recipes::step()     masks stats::step()
+## x recipes::yj_trans() masks scales::yj_trans()
+```
+
+
+
+
+
+
+
+
+---
+
+# Demonstration data
+
+These data are used in our [Feature Engineering and Selection](https://bookdown.org/max/FES/chicago-intro.html) book. 
+
+Several years worth of data were assembled to try to predict the daily number of people entering the Clark and Lake elevated ("L") train station in Chicago. 
+
+For predictors, 
+
+* the 14-day lagged ridership at this and other stations (units: thousands of rides/day)
+
+* weather data
+
+* home/away game schedules for Chicago teams
+
+* the date
+
+The data are in `modeldata`. See `?Chicago`. 
+
+---
+
+# L Train Locations
+
+<div id="htmlwidget-ddca9d8ed994c1b1011f" style="width:100%;height:504px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-ddca9d8ed994c1b1011f">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"calls":[{"method":"addTiles","args":["//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",null,null,{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"attribution":"&copy; <a href=\"http://openstreetmap.org\">OpenStreetMap<\/a> contributors, <a href=\"http://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA<\/a>"}]},{"method":"addCircleMarkers","args":[[41.870851,41.886848,41.885412,41.878723,42.04771,41.938132,41.878183,41.953775,41.966286,42.008362,41.829353,41.80209,42.038951,41.853732,41.8768,41.885269,41.872108,41.831191,41.884431,41.854517,41.875478,41.984246,41.750419,41.874341,41.88574,42.033456,41.887389,41.77886,41.821732,41.804546,41.903355,41.891665,41.977984,41.875474,41.943744,41.883164,41.874257,42.058282,41.85182,41.875539,41.854109,41.722377,41.888969,41.87592,41.886519,41.891189,41.8837,41.795172,42.05416,41.932732,41.964273,41.952925,41.878153,41.921939,41.85177331,41.909744,41.853751,41.887159,41.90392,41.882023,41.910655,41.918217,41.916157,41.879507,42.041655,41.887163,41.89681,41.780309,41.882695,41.854225,41.98227,41.993664,41.969139,41.853839,41.880703,41.910409,41.875706,41.983507,41.857908,42.027612,41.876862,41.966046,41.990259,41.97766526,42.019063,41.780536,41.873797,41.78661,41.778943,41.799756,41.871574,41.87349,41.768367,41.853206,41.966115,41.929728,41.871551,41.853964,42.073153,41.839234,41.884321,41.809209,41.880745,41.831677,41.84678,41.78013,41.804236,41.885678,41.79542,41.965996,42.015876,41.973453,41.936033,41.925051,41.810318,41.94738,42.063987,41.887293,41.816462,41.970634,41.967901,42.001073,41.943623,41.939751,41.961539,41.875568,41.886988,41.88422,41.983504,41.867405,41.896075,41.947428,41.735372,41.947028,41.896671,41.954521,41.966163,41.874039,41.961756,41.885586,41.884914,41.884809,41.884904,42.02624348,41.853115,41.88322],[-87.776812,-87.803176,-87.725404,-87.63374,-87.683543,-87.712359,-87.629296,-87.654929,-87.678639,-87.665909,-87.680622,-87.618487,-87.751919,-87.724311,-87.631739,-87.666969,-87.791602,-87.630636,-87.626149,-87.675975,-87.688436,-87.838028,-87.625112,-87.70604,-87.627835,-87.679538,-87.76565,-87.663766,-87.621371,-87.684019,-87.666496,-87.628021,-87.658668,-87.649707,-87.663619,-87.62944,-87.817318,-87.683337,-87.745336,-87.640984,-87.694774,-87.624342,-87.633924,-87.659458,-87.744698,-87.647578,-87.6278,-87.618327,-87.68356,-87.653131,-87.657588,-87.729229,-87.627596,-87.69689,-87.75669201,-87.677437,-87.733258,-87.783661,-87.631412,-87.626098,-87.649177,-87.652644,-87.687364,-87.626037,-87.681602,-87.754986,-87.635924,-87.605857,-87.63378,-87.685129,-87.8089,-87.659202,-87.658493,-87.714842,-87.629378,-87.639302,-87.673932,-87.859388,-87.669147,-87.678329,-87.628196,-87.701644,-87.659076,-87.90422307,-87.672892,-87.630952,-87.725663,-87.737875,-87.644244,-87.724493,-87.745154,-87.806961,-87.625724,-87.630968,-87.6941,-87.708541,-87.66953,-87.705408,-87.69073,-87.665317,-87.706155,-87.618826,-87.627696,-87.625826,-87.648088,-87.615546,-87.704406,-87.641782,-87.631157,-87.708821,-87.669092,-87.65853,-87.653266,-87.652866,-87.63094,-87.71906,-87.685617,-87.774135,-87.619021,-87.760892,-87.713065,-87.661061,-87.670907,-87.65338,-87.743574,-87.631722,-87.793783,-87.696234,-87.65884,-87.62659,-87.655214,-87.653626,-87.624717,-87.674642,-87.628176,-87.674868,-87.688502,-87.627479,-87.675047,-87.652193,-87.711327,-87.627813,-87.716523,-87.74722084,-87.626402,-87.626189],3,null,null,{"interactive":true,"className":"","stroke":true,"color":"red","weight":5,"opacity":0.5,"fill":true,"fillColor":"red","fillOpacity":0.2},null,null,["Austin (Blue Line)","Harlem/Lake (Green Line)","Pulaski (Green Line)","Quincy/Wells (Brown, Orange, Purple & Pink Lines)","Davis (Purple Line)","Belmont (Blue Line)","Jackson (Blue Line)","Sheridan (Red Line)","Damen (Brown Line)","Morse (Red Line)","35th/Archer (Orange Line)","51st (Green Line)","Dempster-Skokie  (Yellow Line)","Pulaski (Pink Line)","LaSalle/Van Buren (Brown, Orange, Purple & Pink Lines)","Ashland (Green & Pink Lines)","Oak Park (Blue Line)","Sox-35th (Red Line)","Randolph/Wabash (Brown, Green, Orange, Pink & Purple Lines)","Damen (Pink Line)","Western (Blue Line - Forest Park Branch)","Cumberland (Blue Line)","79th (Red Line)","Kedzie-Homan (Blue Line)","State/Lake (Brown, Green, Orange, Pink & Purple Lines)","Main (Purple Line)","Central (Green Line)","Ashland/63rd (Green Line)","Indiana (Green Line)","Western (Orange Line)","Division (Blue Line)","Grand (Red Line)","Berwyn (Red Line)","UIC-Halsted (Blue Line)","Southport (Brown Line)","Washington (Blue Line)","Forest Park (Blue Line)","Noyes (Purple Line)","Cicero (Pink Line)","Clinton (Blue Line)","California (Pink Line)","95th/Dan Ryan (Red Line)","Merchandise Mart (Brown & Purple Lines)","Racine (Blue Line)","Cicero (Green Line)","Grand (Blue Line)","Washington (Red Line)","Garfield (Green Line)","Foster (Purple Line)","Diversey (Brown & Purple Lines)","Wilson (Red & Purple Lines)","Irving Park (Blue Line)","Jackson (Red Line)","California (Blue Line)","54th/Cermak (Pink Line)","Damen (Blue Line)","Kostner (Pink Line)","Ridgeland (Green Line)","Clark/Division (Red Line)","Madison/Wabash (Brown, Green, Orange, Pink & Purple Lines)","North/Clybourn (Red Line)","Armitage (Brown & Purple Lines)","Western (Blue Line - O'Hare Branch)","Adams/Wabash (Brown, Green, Orange, Pink & Purple Lines)","Dempster (Purple Line)","Laramie (Green Line)","Chicago (Brown & Purple Lines)","Cottage Grove (Green Line)","Washington/Wells (Brown, Orange, Purple & Pink Lines)","Western (Pink Line)","Harlem (Blue Line - O'Hare Branch)","Granville (Red Line)","Lawrence (Red Line)","Central Park (Pink Line)","Monroe (Blue Line)","Sedgwick (Brown & Purple Lines)","Illinois Medical District (Blue Line)","Rosemont (Blue Line)","18th (Pink Line)","South Boulevard (Purple Line)","Harold Washington Library-State/Van Buren (Brown, Orange, Purple & Pink Lines)","Francisco (Brown Line)","Thorndale (Red Line)","O'Hare (Blue Line)","Howard (Red, Purple & Yellow Lines)","63rd (Red Line)","Pulaski (Blue Line)","Midway (Orange Line)","Halsted (Green Line)","Pulaski (Orange Line)","Cicero (Blue Line)","Harlem (Blue Line - Forest Park Branch)","69th (Red Line)","Cermak-Chinatown (Red Line)","Rockwell (Brown Line)","Logan Square (Blue Line)","Polk (Pink Line)","Kedzie (Pink Line)","Linden (Purple Line)","Ashland (Orange Line)","Kedzie (Green Line)","47th (Green Line)","Monroe (Red Line)","35th-Bronzeville-IIT (Green Line)","Halsted (Orange Line)","King Drive (Green Line)","Kedzie (Orange Line)","Clinton (Green & Pink Lines)","Garfield (Red Line)","Kedzie (Brown Line)","Jarvis (Red Line)","Argyle (Red Line)","Wellington (Brown & Purple Lines)","Fullerton (Red, Brown & Purple Lines)","47th (Red Line)","Addison (Blue Line)","Central (Purple Line)","Austin (Green Line)","43rd (Green Line)","Jefferson Park (Blue Line)","Kimball (Brown Line)","Loyola (Red Line)","Paulina (Brown Line)","Belmont (Red, Brown & Purple Lines)","Montrose (Blue Line)","LaSalle (Blue Line)","Oak Park (Green Line)","California (Green Line)","Bryn Mawr (Red Line)","Roosevelt (Red, Orange & Green Lines)","Chicago (Blue Line)","Addison (Red Line)","87th (Red Line)","Addison (Brown Line)","Chicago (Red Line)","Irving Park (Brown Line)","Western (Brown Line)","Harrison (Red Line)","Montrose (Brown Line)","Morgan (Green & Pink Lines)","Homan (Green Line)","Lake (Red Line)","Conservatory (Green Line)","Oakton-Skokie (Yellow Line)","Cermak-McCormick Place (Green Line)","Washington/Wabash (Brown, Green, Orange, Purple & Pink Lines)"],null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addCircleMarkers","args":[41.885737,-87.630886,6,null,null,{"interactive":true,"className":"","stroke":true,"color":"green","weight":5,"opacity":0.5,"fill":true,"fillColor":"green","fillOpacity":0.2},null,null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]}],"limits":{"lat":[41.722377,42.073153],"lng":[-87.90422307,-87.605857]}},"evals":[],"jsHooks":[]}</script>
+
+---
+
+# Pre-processing the data
+
+In these data, the ridership from other stations are important predictors but they are highly correlated. 
+
+This might be bad for some models so we should probably reduce the correlation by eliminating columns or re-encoding the variables as _principal components_. 
+
+Also, the date is a strong predictor. We can engineer this into day/month/year indicators as well as indicators for holidays. 
+
+We'll create a recipe to do this.
+ 
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+data("Chicago", package = "modeldata")
+chi_rec &lt;-
+* recipe(ridership ~ ., data = Chicago)
+```
+
+]
+---
+
+# Pre-processing with {recipes}
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+* # Create holiday indicators
+* step_holiday(date)
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+* # Make _factors_ for day, month, and year
+* step_date(date)
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+* # We don't need the original date column
+* step_rm(date)
+```
+
+]
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+  # We don't need the original date column
+  step_rm(date) %&gt;%
+* # Make all factors into indicator variables
+* step_dummy(all_nominal())
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+  # We don't need the original date column
+  step_rm(date) %&gt;%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %&gt;%
+* # Remove any columns with a single value
+* step_zv(all_predictors())
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+  # We don't need the original date column
+  step_rm(date) %&gt;%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %&gt;%
+  # Remove any columns with a single value 
+  step_zv(all_predictors()) %&gt;% 
+* # We will be using methods that require the predictors to be in the same
+* # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.
+* # `stations` is included in  the modeldata package and is a list of the
+* # station predictors.
+* step_normalize(one_of(!!stations))
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+  # We don't need the original date column
+  step_rm(date) %&gt;%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %&gt;%
+  # Remove any columns with a single value
+  step_zv(all_predictors()) %&gt;%
+  # We will be using methods that require the predictors to be in the same 
+  # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.
+  # `stations` is included in  the modeldata package and is a list of the 
+  # station predictors.
+  step_normalize(one_of(!!stations)) %&gt;% 
+* # Convert the stations to principal components.
+* step_pca(one_of(!!stations), num_comp = 10)
+```
+
+]
+
+---
+
+# Pre-processing with {recipes}
+
+.font90[
+
+
+```r
+library(tidymodels)
+
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  # Create holiday indicators
+  step_holiday(date) %&gt;%
+  # Make _factors_ for day, month, and year
+  step_date(date) %&gt;%
+  # We don't need the original date column
+  step_rm(date) %&gt;%
+  # Make all factors into indicator variables
+  step_dummy(all_nominal()) %&gt;%
+  # Remove any columns with a single value
+  step_zv(all_predictors()) %&gt;%
+  # We will be using methods that require the predictors to be in the same 
+  # units/scale. First, we normalize the stations to have mean = 0 and sd = 1.
+  # `stations` is included in  the modeldata package and is a list of the 
+  # station predictors.
+  step_normalize(one_of(!!stations)) %&gt;% 
+  # Convert the stations to principal components. 
+  step_pca(one_of(!!stations), num_comp = 10) %&gt;% 
+* # But wait! Our model will be using distances, so now _everything_ should be
+* # on the same scale (including the PCA values).
+* step_normalize(all_predictors())
+```
+
+]
+
+
+---
+
+# Creating Models with {parsnip}
+
+.pull-left[
+Like a recipe, we create a _model specification_ of what we want to do:
+
+
+```r
+knn_mod &lt;- nearest_neighbor(neighbors = 5) %&gt;% 
+  # The "engine" is the method for 
+  # estimating parameters. For KNN
+  set_engine("kknn") %&gt;% 
+  # The mode is the type of model (we have a
+  # numeric outcome)
+  set_mode("regression")
+```
+
+_Then_ we give it the data to fit the model:
+
+
+```r
+# Just an example with the raw data
+
+fitted &lt;- 
+  knn_mod %&gt;% 
+  fit(ridership ~ Monroe + humidity, data = Chicago)
+```
+
+]
+.pull-right[
+The important piece is that, unlike traditional modeling functions (like `lm()`), we separate:
+
+ * what we want to do ("fit this type of model")
+ 
+from 
+ 
+ * doing it ("estimate stuff with these data")
+
+This allows us to use arguments that can't be evaluated at that time. 
+
+]
+
+---
+
+# Define the Data Analysis Process
+
+.pull-left[
+Let's conceptualize a process or _workflow_ that involves all of the steps where the data are analyzed in a significant way. The includes the model but might also include other _estimation_ steps:
+
+ * data preparation steps (e.g. imputation, encoding, transformations, etc)
+ 
+ * selection of which terms go into the model
+
+and so on. 
+
+Admittedly, there is some grey area here. 
+
+]
+.pull-right[
+
+
+&lt;img src="images/diagram-complex.svg" width="95%" style="display: block; margin: auto;" /&gt;
+
+
+]
+ 
+
+
+
+---
+
+# Tuning Parameters
+
+These are model parameters that cannot be _directly_ estimated from the data.
+
+Examples:
+
+ * number of nearest neighbors
+ 
+ * depth of a classification tree
+ 
+ * amount of regularization
+ 
+ * covariance structure
+ 
+ * distance weighting function
+
+Often, reasonable values for these are found using a search procedure coupled with resampling methods. 
+
+How can we tell the model function that we don't know their values? 
+
+---
+
+# K-NN Tuning parameters
+
+The `dist_power` parameter is related to the type of distance calculation. `dist_power = 2` is everyday Euclidean distance, `dist_power = 1` is Manhattan distance, and so on. Fractional values are acceptable. 
+
+`weight_func` determines how much influence neighbors have based on their distance: 
+
+&lt;img src="kuhn_tune_files/figure-html/schemes-1.svg" width="100%" style="display: block; margin: auto;" /&gt;
+
+---
+
+# Tagging Tunable Parameters
+
+In `parsnip` models (and `recipes`), parameters that need tuning are marked using the `tune()` function in the `{tune}` package. 
+
+`tune()` just returns an expression
+
+.pull-left[
+
+```r
+str(tune())
+```
+
+```
+##  language tune()
+```
+
+```r
+# Let's optimize two parameters:
+knn_mod &lt;- 
+  nearest_neighbor(
+*   neighbors = tune(),
+*   weight_func = tune()
+  ) %&gt;% 
+  set_engine("kknn") %&gt;% 
+  set_mode("regression")
+```
+]
+.pull-right[
+
+```r
+chi_rec &lt;-
+  recipe(ridership ~ ., data = Chicago) %&gt;%
+  step_holiday(date) %&gt;%
+  step_date(date) %&gt;%
+  step_rm(date) %&gt;%
+  step_dummy(all_nominal()) %&gt;%
+  step_zv(all_predictors()) %&gt;%
+  step_normalize(one_of(!!stations)) %&gt;% 
+* step_pca(one_of(!!stations), num_comp = tune()) %&gt;%
+  step_normalize(all_predictors())
+```
+]
+
+
+
+---
+
+# Elements required for grid search
+
+.pull-left[
+* The model and pre-processor.
+
+* Measure of model performance.  
+
+* A resampling scheme to reliably estimate model performance
+
+* A set of candidate models to compare (aka the "grid" in grid search)
+
+There are two main types of grids: regular and non-regular. 
+
+We default to using a special kind of non-regular grid called a space-filling statistical design. You can use any type of grid that you want though. 
+
+]
+.pull-right[
+&lt;img src="kuhn_tune_files/figure-html/grid-plot-1.svg" width="100%" style="display: block; margin: auto;" /&gt;
+]
+
+ 
+
+
+---
+
+# Resampling with {rsample}
+
+Resampling methods, like 10-fold cross-validation or the bootstrap, are methods that can be used to get good estiamtes of how well our models are performing. 
+
+Our resampling scheme will emulate this using [rolling forecasting origin](https://otexts.com/fpp2/accuracy.html) resampling with
+
+* Moving analysis sets of 15 years moving over 28 day periods
+* An assessment set of the most recent 28 days of data
+
+.font80[
+
+
+```r
+time_resamples &lt;- rolling_origin(Chicago, initial = 364 * 15, assess = 7 * 2, skip = 7 * 2, cumulative = FALSE)
+time_resamples
+```
+
+```
+## # Rolling origin forecast resampling 
+## # A tibble: 15 x 2
+##    splits            id     
+##    &lt;list&gt;            &lt;chr&gt;  
+##  1 &lt;split [5.5K/14]&gt; Slice01
+##  2 &lt;split [5.5K/14]&gt; Slice02
+##  3 &lt;split [5.5K/14]&gt; Slice03
+##  4 &lt;split [5.5K/14]&gt; Slice04
+##  5 &lt;split [5.5K/14]&gt; Slice05
+##  6 &lt;split [5.5K/14]&gt; Slice06
+##  7 &lt;split [5.5K/14]&gt; Slice07
+##  8 &lt;split [5.5K/14]&gt; Slice08
+##  9 &lt;split [5.5K/14]&gt; Slice09
+## 10 &lt;split [5.5K/14]&gt; Slice10
+## 11 &lt;split [5.5K/14]&gt; Slice11
+## 12 &lt;split [5.5K/14]&gt; Slice12
+## 13 &lt;split [5.5K/14]&gt; Slice13
+## 14 &lt;split [5.5K/14]&gt; Slice14
+## 15 &lt;split [5.5K/14]&gt; Slice15
+```
+
+]
+
+
+---
+
+# Resampling Graphic
+
+&lt;img src="kuhn_tune_files/figure-html/resample-plot-full-1.png" width="75%" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# Enhance!
+
+&lt;img src="kuhn_tune_files/figure-html/resample-plot-1.svg" width="75%" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# Optimizing Parameters
+
+The functions `tune_grid()` or `tune_bayes()` can detect these and optimize then using grid search or Bayesian optimization, respectively:
+
+
+```r
+# Test 20 values using a space-filling design
+set.seed(2132)
+grid_results &lt;- knn_mod %&gt;% tune_grid(chi_rec, resamples = time_resamples, grid = 20)
+```
+
+What you get back is a tibble with the results
+
+.font90[
+
+
+```r
+grid_results %&gt;% slice(1:5)
+```
+
+```
+## # Rolling origin forecast resampling 
+## # A tibble: 5 x 4
+##   splits            id      .metrics          .notes          
+## * &lt;list&gt;            &lt;chr&gt;   &lt;list&gt;            &lt;list&gt;          
+## 1 &lt;split [5.5K/14]&gt; Slice01 &lt;tibble [40 × 6]&gt; &lt;tibble [0 × 1]&gt;
+## 2 &lt;split [5.5K/14]&gt; Slice02 &lt;tibble [40 × 6]&gt; &lt;tibble [0 × 1]&gt;
+## 3 &lt;split [5.5K/14]&gt; Slice03 &lt;tibble [40 × 6]&gt; &lt;tibble [0 × 1]&gt;
+## 4 &lt;split [5.5K/14]&gt; Slice04 &lt;tibble [40 × 6]&gt; &lt;tibble [0 × 1]&gt;
+## 5 &lt;split [5.5K/14]&gt; Slice05 &lt;tibble [40 × 6]&gt; &lt;tibble [0 × 1]&gt;
+```
+
+]
+
+---
+
+# Get the results
+
+
+
+```r
+collect_metrics(grid_results)
+```
+
+```
+## # A tibble: 40 x 8
+##    neighbors weight_func num_comp .metric .estimator  mean     n std_err
+##        &lt;int&gt; &lt;chr&gt;          &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;
+##  1         1 rectangular        3 rmse    standard   3.21     15  0.363 
+##  2         1 rectangular        3 rsq     standard   0.819    15  0.0469
+##  3         2 gaussian           1 rmse    standard   3.08     15  0.310 
+##  4         2 gaussian           1 rsq     standard   0.839    15  0.0369
+##  5         3 inv                1 rmse    standard   3.14     15  0.292 
+##  6         3 inv                1 rsq     standard   0.855    15  0.0310
+##  7         3 triangular         3 rmse    standard   2.97     15  0.308 
+##  8         3 triangular         3 rsq     standard   0.862    15  0.0357
+##  9         4 biweight           3 rmse    standard   2.99     15  0.321 
+## 10         4 biweight           3 rsq     standard   0.859    15  0.0387
+## # … with 30 more rows
+```
+
+```r
+# to get the metrics for each resample:
+# collect_metrics(grid_results, summarize = FALSE)
+
+# collect_predictions() returns the holdout predictions too.
+```
+
+---
+
+# Best candidate models
+
+
+
+```r
+show_best(grid_results, metric = "rmse")
+```
+
+```
+## # A tibble: 5 x 8
+##   neighbors weight_func num_comp .metric .estimator  mean     n std_err
+##       &lt;int&gt; &lt;chr&gt;          &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;
+## 1         7 triangular         4 rmse    standard    2.96    15   0.263
+## 2         3 triangular         3 rmse    standard    2.97    15   0.308
+## 3         4 biweight           3 rmse    standard    2.99    15   0.321
+## 4         5 rank               3 rmse    standard    3.00    15   0.246
+## 5         6 rank               2 rmse    standard    3.04    15   0.239
+```
+
+---
+
+# Results
+
+
+```r
+autoplot(grid_results, metric = "rmse")
+```
+
+&lt;img src="kuhn_tune_files/figure-html/plot-res-1.svg" width="70%" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# Some notes
+
+* The `grid` option can be an integer or a data frame of specific settings. Also, different metrics can be passed in. 
+
+* These models can be run in parallel using the `foreach` package (the same as `caret`)
+
+* You can easily change the default parameter ranges (e.g. PCA components &gt; 4)
+
+* The models and predictions are not automatically saved but there are options to get those. 
+
+* We capture errors and warnings as they happen and tell you which model they are from (***do the demo!***). 
+
+* There are functions to take these results and use them to finalize the original recipe and model objects.  
+
+* The recipe is remade for every resample; the estimated from the training data are applied to all data. 
+
+
+
+---
+
+# Sequential search
+
+Instead of using a pre-defined set of tuning parameters, there are techniques for finding new values based on the existing results. 
+
+_Bayesian optimization_ is popular and we have a function to do that: 
+
+
+```r
+set.seed(22)
+search_results &lt;- knn_mod %&gt;% tune_bayes(chi_rec, resamples = time_resamples)
+```
+
+See the [package vignettes](https://tidymodels.github.io/tune/) for examples and explanations. 
+
+---
+
+# Fini
+
+Thanks for the invitation to speak!
+
+If you want more information on these packages, the training notes for the 2-day workshop that I taught at RStudio::conf are at [`https://github.com/rstudio-conf-2020/applied-ml`](https://github.com/rstudio-conf-2020/applied-ml). 
+
+These slides are at [`https://github.com/topepo/2019-R-Ladies-Miami`](https://github.com/topepo/2019-R-Ladies-Miami).
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"ratio": "16:9",
+"highlightLanguage": "R",
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
