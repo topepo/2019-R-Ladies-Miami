@@ -3,3 +3,4 @@
 .RData
 .Ruserdata
 kuhn_tune_cache
+.DS_Store

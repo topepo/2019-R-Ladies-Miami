@@ -549,12 +549,12 @@ bind_rows(glmn_lhs, glmn_reg) %>%
 
 # Resampling with {rsample}
 
-Resampling methods, like 10-fold cross-validation or the bootstrap, are methods that can be used to get good estiamtes of how well our models are performing. 
+Resampling methods, like 10-fold cross-validation or the bootstrap, are methods that can be used to get good estimates of how well our models are performing. 
 
 Our resampling scheme will emulate this using [rolling forecasting origin](https://otexts.com/fpp2/accuracy.html) resampling with
 
-* Moving analysis sets of 15 years moving over 28 day periods
-* An assessment set of the most recent 28 days of data
+* Moving analysis sets of 15 years moving over 14 day periods
+* An assessment set of the most recent 14 days of data
 
 .font80[
 
